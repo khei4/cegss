@@ -1,8 +1,9 @@
 {
+    // TODO: use env var for each dependancies
     "tasks": [
         {
             "type": "shell",
-            "label": "build",
+            "label": "cmake",
             "command": "cmake",
             "args": [
                 "-Bbuild",
@@ -13,6 +14,15 @@
                 "-DCMAKE_PREFIX_PATH=$HOME/git/llvm-project-16/build",
                 "-DLIBOAI_SOURCE_DIR=$HOME/git/liboai",
             ],
+            "group": {
+                "kind": "build",
+                // "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "label": "opt run",
+            "command": "$HOME/git/llvm-project-16/build/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
             "group": {
                 "kind": "build",
                 "isDefault": true
