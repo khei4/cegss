@@ -1,0 +1,24 @@
+name: cegss CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: cmake
+      run: cmake -Bbuild" /
+                -GNinja" /
+                -DLLVM_BUILD_DIR=TODO" /
+                -DALIVE2_BUILD_DIR=TODO" /
+                -DALIVE2_SOURCE_DIR=TODO" /
+                -DCMAKE_PREFIX_PATH=TODO" /
+                -DLIBOAI_SOURCE_DIR=TODO" /
