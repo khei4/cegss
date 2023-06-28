@@ -6,12 +6,12 @@
                 "${workspaceFolder}/**",
                 "${HOME}/alive2", //  ALIVE2
                 "${HOME}/git/llvm-project-16/llvm/include", // llvm-16
-                "${HOME}/git/liboai/liboai/inculde" // liboai
+                "${HOME}/git/liboai/liboai/include" // liboai
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c17",
-            "cppStandard": "c++14",
+            "cppStandard": "c++20",
             "intelliSenseMode": "linux-clang-x64"
         }
     ],
