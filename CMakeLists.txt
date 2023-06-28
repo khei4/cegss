@@ -4,8 +4,6 @@ project(cegss)
 set(CMAKE_CXX_FLAGS "-Wall -march=native -fPIC ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_STANDARD 20)
 
-set(LLVM_BUILD_DIR "" CACHE PATH "LLVM installation directory")
-
 # 1.1 Check the "include" directory
 set(LLVM_INCLUDE_DIR "${LLVM_BUILD_DIR}/include/llvm")
 
@@ -15,19 +13,14 @@ if(NOT EXISTS "${LLVM_INCLUDE_DIR}")
 endif()
 
 # 1.2 Check that the LLVMConfig.cmake file exists
-set(VALID_INSTALLATION FALSE)
-
 # Ubuntu + Darwin
-if(EXISTS "${LLVM_BUILD_DIR}/lib/cmake/llvm/LLVMConfig.cmake")
-    set(VALID_INSTALLATION TRUE)
-    message(STATUS "Successfully found llvm cmake")
-endif()
-
-if(NOT ${VALID_INSTALLATION})
+if(NOT EXISTS "${LLVM_BUILD_DIR}/lib/cmake/llvm/LLVMConfig.cmake")
     message(FATAL_ERROR
         "LLVM installation directory, (${LLVM_BUILD_DIR}), is invalid. Couldn't
     find LLVMConfig.cmake.")
 endif()
+
+message(STATUS "Successfully found llvm cmake")
 
 # include llvm
 find_package(LLVM REQUIRED CONFIG)
@@ -52,8 +45,6 @@ find_package(Z3 4.8.5 REQUIRED)
 # include liboai
 # list(APPEND CMAKE_MODULE_PATH "${LIBOAI_SOURCE_DIR}/liboai")
 # find_package(oai REQUIRED)
-message(STATUS "liboai:${LIBOAI_SOURCE_DIR}")
-
 if(NOT EXISTS "${LIBOAI_SOURCE_DIR}/liboai/include/liboai.h")
     message(FATAL_ERROR "liboai.h doesn't exist.")
 endif()
@@ -70,9 +61,7 @@ include_directories(include)
 
 add_executable(tmp main.cpp)
 
-message(STATUS "link ${ALIVE_LIBS} ${Z3_LIBRARIES}")
+message(STATUS "link ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl")
 llvm_map_components_to_libnames(LLVM_LIBS
     analysis core irreader passes scalaropts support transformutils targetparser)
 target_link_libraries(tmp ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl)
-
-# target_link_libraries(tmp ${LLVM_LIBS} ${Z3_LIBRARIES} oai)
