@@ -59,7 +59,7 @@ link_directories("${LIBOAI_SOURCE_DIR}/liboai/build")
 
 include_directories(include)
 
-add_library(tmp SHARED main.cpp)
+add_library(cegss SHARED main.cpp)
 
 if(NOT LLVM_ENABLE_RTTI)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
@@ -71,4 +71,4 @@ message(STATUS "link ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl")
 # TODO: refine libs
 llvm_map_components_to_libnames(LLVM_LIBS
     analysis core irreader passes scalaropts support transformutils targetparser)
-target_link_libraries(tmp ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl)
+target_link_libraries(cegss ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl)
