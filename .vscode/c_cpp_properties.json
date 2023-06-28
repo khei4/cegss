@@ -4,7 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/home/khei4/alive2"
+                "${HOME}/alive2", //  ALIVE2
+                "${HOME}/git/llvm-project-16/llvm/include", // llvm-16
+                "${HOME}/git/liboai/liboai/inculde" // liboai
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
