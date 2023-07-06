@@ -90,6 +90,7 @@ static bool optimize_function(llvm::Function &F, DominatorTree &DT,
   Function *Fnew = M->getFunction(F.getName().str());
   // 4. Verify by alive2
   // 5. replace F with Fnew
+  // FIXME: this doesn't work for top level function
   F.replaceAllUsesWith(Fnew);
   return false;
 }
