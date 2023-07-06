@@ -16,8 +16,21 @@
             ],
             "group": {
                 "kind": "build",
-                // "isDefault": true
             }
+        },
+        {
+            "type": "shell",
+            "label": "ninja",
+            "command": "ninja",
+            "args": [
+                "-Cbuild",
+            ],
+            "group": {
+                "kind": "build",
+            },
+            "dependsOn": [
+                "cmake",
+            ]
         },
         {
             "type": "shell",

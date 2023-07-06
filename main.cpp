@@ -1,28 +1,96 @@
 // from alive2
 #include "smt/smt.h"
 #include "smt/solver.h"
-#include <iostream>
-
+#include <sstream>
+#include <string>
 // from liboai
 #include "liboai.h"
 
 // from llvm
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
+// TODO: create lib to use liboai, interface from LLVM Function.
+std::string stripNonLLVMIR(std::string_view llvmCode) {
+  std::istringstream iss{std::string(llvmCode)};
+  std::ostringstream oss;
+  std::string line;
+  bool insideLLVMIR = false;
+
+  while (std::getline(iss, line)) {
+    if (line.find("define") != std::string::npos)
+      insideLLVMIR = true;
+
+    if (insideLLVMIR)
+      oss << line << '\n';
+
+    if (line.find('}') != std::string::npos)
+      insideLLVMIR = false;
+  }
+
+  return oss.str();
+}
+
 static bool optimize_function(llvm::Function &F, DominatorTree &DT,
                               TargetLibraryInfoWrapperPass &TLI) {
-  // TODO: implement simplified form
-  // 1. Dump Function IR print or dump
+  // TODO: Cut OAI library calls into library
+  // 1. Dump Function IR print or dump to string
+  std::string functionString;
+  llvm::raw_string_ostream rso(functionString);
+  F.print(rso);
+  rso.flush();
+  // dbgs() << functionString << '\n';
   // 2. Throw IR to GPT liboai
+  liboai::OpenAI OAI;
+  liboai::Conversation Convo;
+  std::string ResGPT;
+  Convo.AddUserData("please optimize and/or vectorize following LLVM IR. "
+                    "PLEASE NEVER say anythings except optimized LLVM IR"
+                    "and NEVER change function name" +
+                    functionString);
+  if (OAI.auth.SetKeyEnv("OPENAI_API_KEY")) {
+    try {
+      liboai::Response response =
+          OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
+
+      // update our conversation with the response
+      Convo.Update(response);
+
+      ResGPT = Convo.GetLastResponse();
+      // print the response
+      // dbgs() << "GPT returned: " << '\n';
+      // dbgs() << ResGPT << '\n';
+      // dbgs() << "fin" << '\n';
+    } catch (std::exception &e) {
+      errs() << e.what() << '\n';
+      return false;
+    }
+  } else {
+    errs() << "failed to read oai key\n";
+    return false;
+  }
+
   // 3. GPT response to IR by AsmParser
-  // 4. Verify alive2
+  LLVMContext &C = F.getContext();
+  SMDiagnostic Err;
+  std::unique_ptr<Module> M =
+      parseAssemblyString(stripNonLLVMIR(ResGPT), Err, C);
+  if (!M)
+    Err.print("ParseFailed", errs());
+  // M->dump();
+  Function *Fnew = M->getFunction(F.getName().str());
+  // 4. Verify by alive2
+  // 5. replace F with Fnew
+  F.replaceAllUsesWith(Fnew);
   return false;
 }
 namespace {
