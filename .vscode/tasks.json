@@ -39,7 +39,17 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
-            }
+            },
+            // FIXME: manage secret better way.
+            "options": {
+                "env": {
+                    "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
+                }
+            },
+            "dependsOn": [
+                "cmake",
+                "ninja"
+            ]
         },
     ],
     "version": "2.0.0"
