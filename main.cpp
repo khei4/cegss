@@ -1,9 +1,11 @@
-// from alive2
+#include "llvm_util/compare.h"
+#include "llvm_util/llvm2alive.h"
 #include "smt/smt.h"
 #include "smt/solver.h"
+#include <iostream>
 #include <sstream>
 #include <string>
-// from liboai
+
 #include "liboai.h"
 
 // from llvm
@@ -18,8 +20,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
-
-// TODO: create lib to use liboai, interface from LLVM Function.
 std::string stripNonLLVMIR(std::string_view llvmCode) {
   std::istringstream iss{std::string(llvmCode)};
   std::ostringstream oss;
@@ -40,98 +40,96 @@ std::string stripNonLLVMIR(std::string_view llvmCode) {
   return oss.str();
 }
 
-static bool optimize_function(llvm::Function &F, DominatorTree &DT,
-                              TargetLibraryInfoWrapperPass &TLI) {
-  // TODO: Cut OAI library calls into library
-  // 1. Dump Function IR print or dump to string
-  std::string functionString;
-  llvm::raw_string_ostream rso(functionString);
-  F.print(rso);
-  rso.flush();
-  // dbgs() << functionString << '\n';
-  // 2. Throw IR to GPT liboai
-  liboai::OpenAI OAI;
-  liboai::Conversation Convo;
-  std::string ResGPT;
-  Convo.AddUserData("please optimize and/or vectorize following LLVM IR. "
-                    "PLEASE NEVER say anythings except optimized LLVM IR"
-                    "and NEVER change function name" +
-                    functionString);
-  if (OAI.auth.SetKeyEnv("OPENAI_API_KEY")) {
-    try {
-      liboai::Response response =
-          OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
+bool compareFunctions(llvm::Function &Src, llvm::Function &Tgt,
+                      TargetLibraryInfoWrapperPass &TLI) {
+  std::optional<smt::smt_initializer> smt_init;
+  smt_init.emplace();
 
-      // update our conversation with the response
-      Convo.Update(response);
+  auto Func1 = llvm_util::llvm2alive(Src, TLI.getTLI(Src), true);
+  auto Func2 = llvm_util::llvm2alive(Tgt, TLI.getTLI(Tgt), true);
 
-      ResGPT = Convo.GetLastResponse();
-      // print the response
-      // dbgs() << "GPT returned: " << '\n';
-      // dbgs() << ResGPT << '\n';
-      // dbgs() << "fin" << '\n';
-    } catch (std::exception &e) {
-      errs() << e.what() << '\n';
-      return false;
-    }
-  } else {
-    errs() << "failed to read oai key\n";
+  if (!Func1.has_value() || !Func2.has_value()) {
     return false;
   }
-
-  // 3. GPT response to IR by AsmParser
-  LLVMContext &C = F.getContext();
-  SMDiagnostic Err;
-  std::unique_ptr<Module> M =
-      parseAssemblyString(stripNonLLVMIR(ResGPT), Err, C);
-  if (!M)
-    Err.print("ParseFailed", errs());
-  // M->dump();
-  Function *Fnew = M->getFunction(F.getName().str());
-  // 4. Verify by alive2
-  // 5. replace F with Fnew
-  // FIXME: this doesn't work for top level function
-  F.replaceAllUsesWith(Fnew);
-  return false;
+  return true;
 }
+
+bool verify(llvm::Function &Src, llvm::Function &Tgt,
+            TargetLibraryInfoWrapperPass &TLI) {
+  smt::smt_initializer smt_init;
+  llvm_util::Verifier verifier(TLI, smt_init, std::cout);
+  verifier.quiet = true;
+  verifier.compareFunctions(Src, Tgt);
+  dbgs() << "verified\n";
+  return verifier.num_correct;
+}
+
 namespace {
 struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
   PreservedAnalyses run(llvm::Function &F, FunctionAnalysisManager &FAM) {
     PreservedAnalyses PA;
     PA.preserveSet<CFGAnalyses>();
-
-    if (F.isDeclaration())
-      return PA;
-
-    DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
-
     TargetLibraryInfoWrapperPass TLI(Triple(F.getParent()->getTargetTriple()));
-    optimize_function(F, DT, TLI);
+    LLVMContext &C = F.getContext();
+    SMDiagnostic Err;
+    std::string functionString;
+    llvm::raw_string_ostream rso(functionString);
+    F.print(rso);
+    rso.flush();
+    // dbgs() << functionString << '\n';
+    // 2. Throw IR to GPT liboai
+    liboai::OpenAI OAI;
+    liboai::Conversation Convo;
+    std::string ResGPT;
+    Convo.AddUserData("please optimize and/or vectorize following LLVM IR. "
+                      "PLEASE NEVER say anythings except optimized LLVM IR"
+                      "and NEVER change function name" +
+                      functionString);
+    if (OAI.auth.SetKeyEnv("OPENAI_API_KEY")) {
+      try {
+        liboai::Response response =
+            OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
+
+        // update our conversation with the response
+        Convo.Update(response);
+
+        ResGPT = Convo.GetLastResponse();
+        std::cerr << ResGPT << "\n";
+        // print the response
+      } catch (std::exception &e) {
+        errs() << e.what() << '\n';
+        return PA;
+      }
+    } else {
+      errs() << "failed to read oai key\n";
+      return PA;
+    }
+
+    // 3. GPT response to IR by AsmParser
+    std::unique_ptr<Module> M =
+        parseAssemblyString(stripNonLLVMIR(ResGPT), Err, C);
+    if (!M)
+      Err.print("ParseFailed", errs());
+    // M->dump();
+    Function *Fnew = M->getFunction(F.getName().str());
+    // 4. Verify by alive2
+    dbgs() << "successfully called!\n";
+    if (verify(F, *Fnew, TLI)) {
+      dbgs() << "ok\n";
+      Fnew->print(dbgs());
+    } else {
+      dbgs() << "not ok\n";
+      Fnew->print(dbgs());
+    }
+
     return PA;
   }
 
-  // TODO: find whether this is necessary.
-  // Without isRequired returning true, this pass will be skipped for functions
-  // decorated with the optnone LLVM attribute. Note that clang -O0 decorates
-  // all functions with optnone.
   static bool isRequired() { return true; }
 };
 
 } // namespace
-
 void passBuilderCallback(PassBuilder &PB) {
-  // form minotaur
-  // https://github.com/minotaur-toolkit/minotaur/blob/aa06f51f9b2ce601e8332b449a33b29db7ce01a2/pass/online.cpp#L276-L282
-  // PB.registerPipelineParsingCallback(pipelineParsingCallback);
-  // PB.registerVectorCombineCallback(
-  //     [](llvm::FunctionPassManager &FPM, llvm::OptimizationLevel) {
-  //       FPM.addPass(SuperoptimizerPass());
-  //     });
-
-  // from llvm-tutor
-  // https://github.com/khei4/llvm-tutor/blob/b8f50cf7e885b68b1e1fe33931df9e95acfdab79/HelloWorld/HelloWorld.cpp#L73-L86
-  // FIXME: find the place to call, consider PeepholeEPCallback or
-  // registerOptimizerLastEPCallback
   PB.registerPipelineParsingCallback(
       [](StringRef Name, FunctionPassManager &FPM,
          ArrayRef<PassBuilder::PipelineElement>) {
@@ -144,7 +142,7 @@ PassPluginLibraryInfo getSuperoptimizerPassPluginInfo() {
   llvm::PassPluginLibraryInfo Res;
 
   Res.APIVersion = LLVM_PLUGIN_API_VERSION;
-  Res.PluginName = "SuperoptimizerPass";
+  Res.PluginName = "CEGSSPass";
   Res.PluginVersion = LLVM_VERSION_STRING;
   Res.RegisterPassBuilderCallbacks = passBuilderCallback;
 

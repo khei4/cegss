@@ -5,26 +5,8 @@ set(CMAKE_CXX_FLAGS "-Wall -march=native -fPIC ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-# 1.1 Check the "include" directory
-set(LLVM_INCLUDE_DIR "${LLVM_BUILD_DIR}/include/llvm")
-
-if(NOT EXISTS "${LLVM_INCLUDE_DIR}")
-    message(FATAL_ERROR
-        " LLVM_BUILD_DIR (${LLVM_INCLUDE_DIR}) is invalid.")
-endif()
-
-# 1.2 Check that the LLVMConfig.cmake file exists
-# Ubuntu + Darwin
-if(NOT EXISTS "${LLVM_BUILD_DIR}/lib/cmake/llvm/LLVMConfig.cmake")
-    message(FATAL_ERROR
-        "LLVM installation directory, (${LLVM_BUILD_DIR}), is invalid. Couldn't
-    find LLVMConfig.cmake.")
-endif()
-
-message(STATUS "Successfully found llvm cmake")
-
 # include llvm
-find_package(LLVM 16 REQUIRED CONFIG)
+find_package(LLVM 17 REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -37,15 +19,22 @@ add_definitions(${LLVM_DEFINITIONS})
 
 # include Alive2
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-find_package(Alive2)
+find_package(Alive2 REQUIRED)
+message(STATUS "link ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} curl")
+
 include_directories(${ALIVE2_SOURCE_DIR})
 
 # include Z3
 find_package(Z3 4.8.5 REQUIRED)
 
-# include liboai
-# list(APPEND CMAKE_MODULE_PATH "${LIBOAI_SOURCE_DIR}/liboai")
-# find_package(oai REQUIRED)
+if(NOT Z3_FOUND)
+    message(FATAL_ERROR "could not find Z3.")
+endif()
+
+if(NOT LLVM_ENABLE_RTTI)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+endif()
+
 if(NOT EXISTS "${LIBOAI_SOURCE_DIR}/liboai/include/liboai.h")
     message(FATAL_ERROR "liboai.h doesn't exist.")
 endif()
@@ -53,23 +42,22 @@ endif()
 include_directories("${LIBOAI_SOURCE_DIR}/liboai/include")
 
 if(NOT EXISTS "${LIBOAI_SOURCE_DIR}/liboai/build/liboai.a")
-    message(FATAL_ERROR "liboai.ar doesn't exist.")
+    message(FATAL_ERROR "liboai.a doesn't exist.")
 endif()
 
 link_directories("${LIBOAI_SOURCE_DIR}/liboai/build")
 
-include_directories(include)
+get_property(link_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY LINK_DIRECTORIES)
 
-add_library(cegss SHARED main.cpp)
+foreach(dir IN LISTS link_dirs)
+    message("Link Directory: ${dir}")
+endforeach()
 
-if(NOT LLVM_ENABLE_RTTI)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-endif()
-
-# add_executable(tmp main.cpp)
 message(STATUS "link ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl")
 
-# TODO: refine libs
+# add_executable(identity main.cpp)
+add_library(cegss SHARED main.cpp)
+
 llvm_map_components_to_libnames(LLVM_LIBS
     analysis core irreader passes scalaropts support transformutils targetparser)
 target_link_libraries(cegss ${ALIVE_LIBS} ${Z3_LIBRARIES} ${LLVM_LIBS} oai curl)

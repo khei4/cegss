@@ -8,11 +8,11 @@
             "args": [
                 "-Bbuild",
                 "-GNinja",
-                "-DLLVM_BUILD_DIR=$HOME/git/llvm-project-16/build",
-                "-DALIVE2_BUILD_DIR=$HOME/alive2/build",
-                "-DALIVE2_SOURCE_DIR=$HOME/alive2",
-                "-DCMAKE_PREFIX_PATH=$HOME/git/llvm-project-16/build",
+                "-DALIVE2_BUILD_DIR=$HOME/git/alive2/build",
+                "-DALIVE2_SOURCE_DIR=$HOME/git/alive2",
+                "-DCMAKE_PREFIX_PATH=$HOME/git/llvm-project/build",
                 "-DLIBOAI_SOURCE_DIR=$HOME/git/liboai",
+                "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
             ],
             "group": {
                 "kind": "build",
@@ -35,7 +35,7 @@
         {
             "type": "shell",
             "label": "opt run",
-            "command": "$HOME/git/llvm-project-16/build/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
+            "command": "$HOME/git/llvm-project/build/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
             "group": {
                 "kind": "build",
                 "isDefault": true
