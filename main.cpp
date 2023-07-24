@@ -60,7 +60,6 @@ bool verify(llvm::Function &Src, llvm::Function &Tgt,
   llvm_util::Verifier verifier(TLI, smt_init, std::cout);
   verifier.quiet = true;
   verifier.compareFunctions(Src, Tgt);
-  dbgs() << "verified\n";
   return verifier.num_correct;
 }
 
@@ -81,6 +80,8 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
     liboai::OpenAI OAI;
     liboai::Conversation Convo;
     std::string ResGPT;
+    // TODO:
+    // 最適化の根拠を聞く、何をしたか、入力になにか制約があればもっとできたはずか？みたいなのをpromptにいれる
     Convo.AddUserData("please optimize and/or vectorize following LLVM IR. "
                       "PLEASE NEVER say anythings except optimized LLVM IR"
                       "and NEVER change function name" +
@@ -110,10 +111,10 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
         parseAssemblyString(stripNonLLVMIR(ResGPT), Err, C);
     if (!M)
       Err.print("ParseFailed", errs());
+    dbgs() << "successfully called!\n";
     // M->dump();
     Function *Fnew = M->getFunction(F.getName().str());
     // 4. Verify by alive2
-    dbgs() << "successfully called!\n";
     if (verify(F, *Fnew, TLI)) {
       dbgs() << "ok\n";
       Fnew->print(dbgs());
