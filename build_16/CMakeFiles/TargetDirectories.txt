@@ -1,7 +1,0 @@
-/home/khei4/git/cegss/build/CMakeFiles/intrinsics_gen.dir
-/home/khei4/git/cegss/build/CMakeFiles/omp_gen.dir
-/home/khei4/git/cegss/build/CMakeFiles/acc_gen.dir
-/home/khei4/git/cegss/build/CMakeFiles/RISCVTargetParserTableGen.dir
-/home/khei4/git/cegss/build/CMakeFiles/cegss.dir
-/home/khei4/git/cegss/build/CMakeFiles/edit_cache.dir
-/home/khei4/git/cegss/build/CMakeFiles/rebuild_cache.dir

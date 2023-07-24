@@ -10,7 +10,7 @@
                 "-GNinja",
                 "-DALIVE2_BUILD_DIR=$HOME/git/alive2/build",
                 "-DALIVE2_SOURCE_DIR=$HOME/git/alive2",
-                "-DCMAKE_PREFIX_PATH=$HOME/git/llvm-project/build",
+                "-DCMAKE_PREFIX_PATH=$HOME/git/llvm-project/buildcegss",
                 "-DLIBOAI_SOURCE_DIR=$HOME/git/liboai",
                 "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
             ],
@@ -35,12 +35,11 @@
         {
             "type": "shell",
             "label": "opt run",
-            "command": "$HOME/git/llvm-project/build/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
+            "command": "source .env && $HOME/git/llvm-project/buildcegss/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            // FIXME: manage secret better way.
             "options": {
                 "env": {
                     "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
@@ -48,8 +47,9 @@
             },
             "dependsOn": [
                 "cmake",
-                "ninja"
-            ]
+                "ninja",
+            ],
+            "dependsOrder": "sequence",
         },
     ],
     "version": "2.0.0"
