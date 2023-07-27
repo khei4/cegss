@@ -38,13 +38,13 @@ llvm::cl::opt<bool> DA("disable-alive",
 llvm::cl::opt<unsigned>
     FunctionTryTimes("function-trial-times",
                      llvm::cl::desc("cegss: trial times per functions"),
-                     llvm::cl::init(5), llvm::cl::value_desc("times"));
+                     llvm::cl::init(2), llvm::cl::value_desc("times"));
 
 using namespace llvm;
 
-std::string dumpFunctionAndCalled(Function &F) {
+std::string dumpFunctionAndCalled(Function &F, std::string &Decls) {
   std::string Buff;
-  raw_string_ostream rso(Buff);
+  raw_string_ostream rso(Buff), rsod(Decls);
   F.print(rso);
 
   SmallSet<const llvm::Function *, 8> printedFunctions;
@@ -61,24 +61,27 @@ std::string dumpFunctionAndCalled(Function &F) {
 
       if (calledFunction && !calledFunction->isIntrinsic() &&
           printedFunctions.insert(calledFunction).second) {
+        calledFunction->print(rsod);
         calledFunction->print(rso);
         rso << "\n";
       }
     }
   }
   rso.flush();
+  rsod.flush();
 
   return rso.str();
 }
 
-std::string stripNonLLVMIR(std::string_view llvmCode) {
+std::string stripNonLLVMIR(std::string_view llvmCode, std::string FName) {
   std::istringstream iss{std::string(llvmCode)};
   std::ostringstream oss;
   std::string line;
   bool insideLLVMIR = false;
 
   while (std::getline(iss, line)) {
-    if (line.find("define") != std::string::npos)
+    if (line.find("define") != std::string::npos &&
+        line.find(FName) != std::string::npos)
       insideLLVMIR = true;
 
     if (insideLLVMIR)
@@ -192,10 +195,11 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
     SMDiagnostic Err;
 
     // Dump Function into string
-    std::string FString = dumpFunctionAndCalled(F);
+    std::string Decls;
+    std::string FString = dumpFunctionAndCalled(F, Decls);
 
     liboai::Conversation Convo;
-    std::string ResGPT, FeedBack;
+    std::string ResGPT, FeedBack, FName = F.getName().str();
     std::unique_ptr<Module> M = nullptr;
     Function *Fnew = nullptr;
     int cnt = 0;
@@ -248,10 +252,14 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
         errs() << "===============GPT raw response================\n";
         errs() << ResGPT << '\n';
         errs() << "======================================================\n";
-        M = parseAssemblyString(stripNonLLVMIR(ResGPT), Err, C);
+        std::string ResSrc = stripNonLLVMIR(ResGPT, FName);
+        ResSrc += "\n" + Decls;
+        M = parseAssemblyString(ResSrc, Err, C);
+        Fnew = M->getFunction(FName);
+        if (!Fnew)
+          FeedBack = "you must give the function named " + F.getName().str();
         FeedBack = Err.getMessage().str();
-      } while (!M);
-      Fnew = M->getFunction(F.getName().str());
+      } while (!Fnew);
       dbgs() << "================Valid Module emitted ==================\n";
       Fnew->print(dbgs());
       dbgs() << "=======================================================\n";
