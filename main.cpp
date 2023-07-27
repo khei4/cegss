@@ -32,7 +32,12 @@ llvm::cl::opt<unsigned>
 
 llvm::cl::opt<bool> DA("disable-alive",
                        llvm::cl::desc("cegss: disable alive2 verification"),
-                       llvm::cl::init(true), llvm::cl::value_desc("s"));
+                       llvm::cl::init(true), llvm::cl::value_desc(""));
+
+llvm::cl::opt<unsigned>
+    FunctionTryTimes("function-trial-times",
+                     llvm::cl::desc("cegss: trial times per functions"),
+                     llvm::cl::init(5), llvm::cl::value_desc("times"));
 
 using namespace llvm;
 std::string stripNonLLVMIR(std::string_view llvmCode) {
@@ -168,14 +173,21 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
       do {
         if (cnt++)
           dbgs() << "retry " << cnt << "times\n";
+        if (cnt == FunctionTryTimes) {
+          dbgs() << "===============synthesis failed for " << FunctionTryTimes
+                 << "times====================\n";
+          return PA;
+        }
         // 2. Throw IR to GPT liboai
         // TODO:
         // ask the reason, what is done, if something is there, more optimized
         // 最適化の根拠を聞く、何をしたか、入力になにか制約があればもっとできたはずか？みたいなのをpromptにいれる
         // TODO: load from something
         std::string prompt =
-            "please optimize and/or vectorize following LLVM IR. "
+            "Please optimize and/or vectorize following LLVM IR. "
+            "if it's impossible, please return the code."
             "PLEASE NEVER say anythings except optimized LLVM IR "
+            "PLEASE use opaque pointers"
             "and NEVER change function name.\n\n" +
             FString;
         if (!FeedBack.empty())
@@ -187,6 +199,9 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
         // clear data if the context is over 5000
         Convo.AddUserData(prompt);
         try {
+          // TODO: toggle gpt-3 and 4
+          // liboai::Response response =
+          //     OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
           liboai::Response response =
               OAI.ChatCompletion->create("gpt-4", Convo);
           Convo.Update(response);
@@ -241,8 +256,11 @@ void passBuilderCallback(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
       [](StringRef Name, FunctionPassManager &FPM,
          ArrayRef<PassBuilder::PipelineElement>) {
-        FPM.addPass(SuperoptimizerPass());
-        return true;
+        if (Name == "cegss") {
+          FPM.addPass(SuperoptimizerPass());
+          return true;
+        } else
+          return false;
       });
 }
 
