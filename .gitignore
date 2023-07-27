@@ -4,3 +4,5 @@ output.ll
 # ignore tmp out
 gmpbench-0.2/*.ll
 gmpbench-0.2/*.txt
+**/*_opt.ll
+**/*.log
