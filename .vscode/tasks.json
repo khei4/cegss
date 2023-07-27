@@ -35,7 +35,7 @@
         {
             "type": "shell",
             "label": "opt run",
-            "command": "source .env && $HOME/git/llvm-project/buildcegss/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll",
+            "command": "source .env && $HOME/git/llvm-project/buildcegss/bin/opt -S -passes=cegss -load-pass-plugin /home/khei4/git/cegss/build/libcegss.so --debug < input.ll > output.ll 2> debug-(date +'%Y-%m-%d-%H-%M-%S').log",
             "group": {
                 "kind": "build",
                 "isDefault": true

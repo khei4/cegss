@@ -11,6 +11,7 @@
 #include "liboai.h"
 
 // from llvm
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Dominators.h"
@@ -40,6 +41,36 @@ llvm::cl::opt<unsigned>
                      llvm::cl::init(5), llvm::cl::value_desc("times"));
 
 using namespace llvm;
+
+std::string dumpFunctionAndCalled(Function &F) {
+  std::string Buff;
+  raw_string_ostream rso(Buff);
+  F.print(rso);
+
+  SmallSet<const llvm::Function *, 8> printedFunctions;
+  for (const llvm::BasicBlock &BB : F) {
+    for (const llvm::Instruction &I : BB) {
+      const llvm::Function *calledFunction = nullptr;
+
+      if (const auto *callInst = llvm::dyn_cast<llvm::CallInst>(&I)) {
+        calledFunction = callInst->getCalledFunction();
+      } else if (const auto *invokeInst =
+                     llvm::dyn_cast<llvm::InvokeInst>(&I)) {
+        calledFunction = invokeInst->getCalledFunction();
+      }
+
+      if (calledFunction && !calledFunction->isIntrinsic() &&
+          printedFunctions.insert(calledFunction).second) {
+        calledFunction->print(rso);
+        rso << "\n";
+      }
+    }
+  }
+  rso.flush();
+
+  return rso.str();
+}
+
 std::string stripNonLLVMIR(std::string_view llvmCode) {
   std::istringstream iss{std::string(llvmCode)};
   std::ostringstream oss;
@@ -146,22 +177,23 @@ void replaceFunctionBody(Function *F, Function *F1) {
 namespace {
 struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
   PreservedAnalyses run(llvm::Function &F, FunctionAnalysisManager &FAM) {
-    smt::set_query_timeout(std::to_string(Alive2TimeOut * 1000));
     PreservedAnalyses PA;
     PA.preserveSet<CFGAnalyses>();
-    TargetLibraryInfoWrapperPass TLI(Triple(F.getParent()->getTargetTriple()));
-    LLVMContext &C = F.getContext();
-    SMDiagnostic Err;
-    // Dump Function into string
-    std::string FString;
-    raw_string_ostream rso(FString);
-    F.print(rso);
-    rso.flush();
+
     liboai::OpenAI OAI;
     if (!OAI.auth.SetKeyEnv("OPENAI_API_KEY")) {
       errs() << "failed to read oai key\n";
       return PA;
     }
+
+    smt::set_query_timeout(std::to_string(Alive2TimeOut * 1000));
+    TargetLibraryInfoWrapperPass TLI(Triple(F.getParent()->getTargetTriple()));
+    LLVMContext &C = F.getContext();
+    SMDiagnostic Err;
+
+    // Dump Function into string
+    std::string FString = dumpFunctionAndCalled(F);
+
     liboai::Conversation Convo;
     std::string ResGPT, FeedBack;
     std::unique_ptr<Module> M = nullptr;
@@ -185,7 +217,7 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
         // TODO: load from something
         std::string prompt =
             "Please optimize and/or vectorize following LLVM IR. "
-            "if it's impossible, please return the code."
+            "if it's impossible, please return the provided code."
             "PLEASE NEVER say anythings except optimized LLVM IR "
             "PLEASE use opaque pointers"
             "and NEVER change function name.\n\n" +
@@ -200,10 +232,10 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
         Convo.AddUserData(prompt);
         try {
           // TODO: toggle gpt-3 and 4
-          // liboai::Response response =
-          //     OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
           liboai::Response response =
-              OAI.ChatCompletion->create("gpt-4", Convo);
+              OAI.ChatCompletion->create("gpt-3.5-turbo", Convo);
+          // liboai::Response response =
+          //     OAI.ChatCompletion->create("gpt-4", Convo);
           Convo.Update(response);
           ResGPT = Convo.GetLastResponse();
         } catch (std::exception &e) {
@@ -224,7 +256,7 @@ struct SuperoptimizerPass : PassInfoMixin<SuperoptimizerPass> {
       Fnew->print(dbgs());
       dbgs() << "=======================================================\n";
       if (DA) {
-        dbgs() << "Verification diabled\n";
+        dbgs() << "Verification disabled\n";
         break;
       }
       // 4. Verify by alive2
