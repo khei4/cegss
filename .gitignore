@@ -1,5 +1,6 @@
 build
 .env
+.env.bash
 output.ll
 # ignore tmp out
 gmpbench-0.2/*.ll
@@ -13,3 +14,5 @@ gmpbench-0.2/*.txt
 **/*mca_O3.txt
 **/*_opt_O3.ll
 **/*.log
+**/*cegss.txt
+**/*cegss.ll
