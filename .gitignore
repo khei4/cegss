@@ -5,4 +5,11 @@ output.ll
 gmpbench-0.2/*.ll
 gmpbench-0.2/*.txt
 **/*_opt.ll
+**/*.s
+**/*mca.txt
+**/*mca_O0.txt
+**/*_opt_O0.ll
+**/*.log
+**/*mca_O3.txt
+**/*_opt_O3.ll
 **/*.log
