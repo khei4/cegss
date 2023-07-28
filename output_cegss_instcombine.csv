@@ -1,0 +1,3 @@
+Name,Instructions,Total Cycles,Total uOps
+examples_instcombine/InstCombine/cos-1_mca_cegss.txt,17800,305901,22800,
+examples_instcombine/InstCombine/div_mca_cegss.txt,88400,195201,90000,
